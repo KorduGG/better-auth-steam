@@ -3,6 +3,14 @@
 	"version": "0.1.1",
 	"description": "Steam OpenID 2.0 plugin for Better Auth",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ytsdv/better-auth-steam.git"
+	},
+	"bugs": {
+		"url": "https://github.com/ytsdv/better-auth-steam/issues"
+	},
+	"homepage": "https://github.com/ytsdv/better-auth-steam#readme",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
