@@ -1,10 +1,11 @@
 import type { SteamPlayerSummary } from './openid';
-import type { BetterAuthPluginDBSchema } from 'better-auth/db';
+import type { InferOptionSchema } from 'better-auth';
+import type { schema } from './schema';
 
 export interface SteamPluginOptions {
 	/**
 	 * Steam Web API key.
-	 * Get one from https://steamcommunity.com/dev/apikey
+	 * Get one from https://steamcommunity.com/dev/apikey.
 	 */
 	apiKey: string;
 
@@ -19,8 +20,8 @@ export interface SteamPluginOptions {
 
 	/**
 	 * Customize how a Steam profile maps onto the Better Auth user fields.
-	 * Runs after the OpenID identity is verified and the Steam Web API
-	 * profile is fetched (if fetching succeeded).
+	 * The function runs after the OpenID identity is verified and the plugin
+	 * fetches the Steam Web API profile.
 	 *
 	 * Returned fields override the defaults. Any fields you omit fall back
 	 * to the plugin defaults (synthetic email, personaname, avatarfull).
@@ -32,10 +33,9 @@ export interface SteamPluginOptions {
 	};
 
 	/**
-	 * Override or extend the plugin's database schema.
-	 * Allows renaming the `steamId` field or changing its table model name.
+	 * Rename the `steamId` field or its user model.
 	 */
-	schema?: BetterAuthPluginDBSchema;
+	schema?: InferOptionSchema<typeof schema>;
 }
 
 export type { SteamPlayerSummary };
