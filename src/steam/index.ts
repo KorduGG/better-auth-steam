@@ -40,6 +40,61 @@ const steamRateLimit = {
 	max: 10
 };
 
+interface SteamFlowBody {
+	callbackURL?: string;
+	errorCallbackURL?: string;
+}
+
+type TrustedOriginCheck = (
+	url: string,
+	settings?: { allowRelativePaths: boolean }
+) => boolean;
+
+function prepareSteamFlow(
+	body: SteamFlowBody,
+	baseURL: string,
+	isTrustedOrigin: TrustedOriginCheck
+): { callbackEndpoint: string; realm: string } {
+	body.callbackURL = normalizeRedirectTarget(
+		body.callbackURL,
+		baseURL,
+		'/',
+		isTrustedOrigin
+	);
+	body.errorCallbackURL = normalizeRedirectTarget(
+		body.errorCallbackURL,
+		baseURL,
+		`${baseURL}/error`,
+		isTrustedOrigin
+	);
+
+	return {
+		callbackEndpoint: `${baseURL}/steam/callback`,
+		realm: new URL(baseURL).origin
+	};
+}
+
+function buildSteamAuthorizationURL(
+	callbackEndpoint: string,
+	realm: string,
+	state: string
+): string {
+	const returnTo = new URL(callbackEndpoint);
+	returnTo.searchParams.set('state', state);
+	return buildSteamOpenIDRedirectURL(realm, returnTo.toString());
+}
+
+async function createNonceIdentifier(responseNonce: string): Promise<string> {
+	const data = new TextEncoder().encode(
+		`https://steamcommunity.com/openid/login:${responseNonce}`
+	);
+	const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
+	const hash = Array.from(new Uint8Array(digest), (byte) =>
+		byte.toString(16).padStart(2, '0')
+	).join('');
+	return `steam-openid:${hash}`;
+}
+
 /**
  * This Better Auth plugin adds Steam sign-in through Steam's OpenID 2.0 flow.
  *
@@ -79,29 +134,15 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 				async (ctx) => {
 					const isTrustedRedirect = (url: string, settings?: { allowRelativePaths: boolean }) =>
 						ctx.context.isTrustedOrigin(url, settings);
-					const callbackURL = normalizeRedirectTarget(
-						ctx.body.callbackURL,
+					const { callbackEndpoint, realm } = prepareSteamFlow(
+						ctx.body,
 						ctx.context.baseURL,
-						'/',
 						isTrustedRedirect
 					);
-					const errorCallbackURL = normalizeRedirectTarget(
-						ctx.body.errorCallbackURL,
-						ctx.context.baseURL,
-						`${ctx.context.baseURL}/error`,
-						isTrustedRedirect
-					);
-					const realm = new URL(ctx.context.baseURL).origin;
-					const callbackEndpoint = `${ctx.context.baseURL}/steam/callback`;
-					ctx.body.callbackURL = callbackURL;
-					ctx.body.errorCallbackURL = errorCallbackURL;
 					const { state } = await generateState(ctx, undefined, {
 						returnTo: callbackEndpoint
 					});
-					const returnTo = new URL(callbackEndpoint);
-					returnTo.searchParams.set('state', state);
-
-					const url = buildSteamOpenIDRedirectURL(realm, returnTo.toString());
+					const url = buildSteamAuthorizationURL(callbackEndpoint, realm, state);
 					ctx.setHeader('Location', url);
 					return ctx.json({
 						url,
@@ -147,20 +188,11 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 
 					const isTrustedRedirect = (url: string, settings?: { allowRelativePaths: boolean }) =>
 						ctx.context.isTrustedOrigin(url, settings);
-					ctx.body.callbackURL = normalizeRedirectTarget(
-						ctx.body.callbackURL,
+					const { callbackEndpoint, realm } = prepareSteamFlow(
+						ctx.body,
 						ctx.context.baseURL,
-						'/',
 						isTrustedRedirect
 					);
-					ctx.body.errorCallbackURL = normalizeRedirectTarget(
-						ctx.body.errorCallbackURL,
-						ctx.context.baseURL,
-						`${ctx.context.baseURL}/error`,
-						isTrustedRedirect
-					);
-					const realm = new URL(ctx.context.baseURL).origin;
-					const callbackEndpoint = `${ctx.context.baseURL}/steam/callback`;
 					const { state } = await generateState(
 						ctx,
 						{
@@ -169,10 +201,7 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 						},
 						{ returnTo: callbackEndpoint }
 					);
-					const returnTo = new URL(callbackEndpoint);
-					returnTo.searchParams.set('state', state);
-
-					const url = buildSteamOpenIDRedirectURL(realm, returnTo.toString());
+					const url = buildSteamAuthorizationURL(callbackEndpoint, realm, state);
 					ctx.setHeader('Location', url);
 					return ctx.json({
 						url,
@@ -266,7 +295,30 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 					let steamId: string;
 					try {
 						const params = new URL(ctx.request.url).searchParams;
-						steamId = await verifySteamOpenIDResponse(params, returnTo.toString());
+						const verification = await verifySteamOpenIDResponse(
+							params,
+							returnTo.toString()
+						);
+						steamId = verification.steamId;
+						const nonceIdentifier = await createNonceIdentifier(
+							verification.responseNonce
+						);
+						const existingNonce =
+							await ctx.context.internalAdapter.findVerificationValue(
+								nonceIdentifier
+							);
+						const reserved =
+							!existingNonce &&
+							(await ctx.context.internalAdapter.reserveVerificationValue({
+								identifier: nonceIdentifier,
+								value: steamId,
+								expiresAt: verification.responseNonceExpiresAt
+							}));
+						if (!reserved) {
+							throw new Error(
+								'The plugin detected a repeated Steam OpenID response nonce.'
+							);
+						}
 					} catch (e) {
 						ctx.context.logger.error('Steam OpenID verification failed.', e);
 						return redirectWithError(errorRedirectBase, 'STEAM_VERIFICATION_FAILED');
@@ -311,11 +363,23 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 							);
 						}
 
-						const existingAccount =
-							await ctx.context.internalAdapter.findAccountByProviderId(
-								steamId,
-								PROVIDER_ID
+						let existingAccount;
+						try {
+							existingAccount =
+								await ctx.context.internalAdapter.findAccountByProviderId(
+									steamId,
+									PROVIDER_ID
+								);
+						} catch (error) {
+							ctx.context.logger.error(
+								'The plugin could not check the Steam account owner.',
+								error
 							);
+							return redirectWithError(
+								errorRedirectBase,
+								'STEAM_UNABLE_TO_LINK_ACCOUNT'
+							);
+						}
 						if (existingAccount && existingAccount.userId.toString() !== link.userId) {
 							return redirectWithError(errorRedirectBase, 'STEAM_ACCOUNT_ALREADY_LINKED');
 						}
@@ -399,12 +463,24 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 						steamId?: string | null;
 					};
 					if (authenticatedUser.steamId !== steamId) {
-						const updatedUser = await ctx.context.internalAdapter.updateUser(
-							authenticatedUser.id,
-							{ steamId }
-						);
-						if (updatedUser) {
+						try {
+							const updatedUser = await ctx.context.internalAdapter.updateUser(
+								authenticatedUser.id,
+								{ steamId }
+							);
+							if (!updatedUser) {
+								throw new Error('The user update did not complete.');
+							}
 							authenticatedUser = updatedUser as typeof authenticatedUser;
+						} catch (error) {
+							ctx.context.logger.error(
+								'The plugin could not store the Steam ID on the user.',
+								error
+							);
+							return redirectWithError(
+								errorRedirectBase,
+								'STEAM_AUTHENTICATION_FAILED'
+							);
 						}
 					}
 

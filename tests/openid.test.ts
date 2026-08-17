@@ -45,12 +45,17 @@ test('verifies the documented HTTP Steam claimed ID', async (context) => {
 		new Response(VALID_DIRECT_RESPONSE)
 	);
 
-	const steamId = await verifySteamOpenIDResponse(
-		validOpenIDResponse(),
-		EXPECTED_RETURN_TO
-	);
+	const params = validOpenIDResponse();
+	const verification = await verifySteamOpenIDResponse(params, EXPECTED_RETURN_TO);
 
-	assert.equal(steamId, STEAM_ID);
+	assert.deepEqual(verification, {
+		responseNonce: params.get('openid.response_nonce'),
+		responseNonceExpiresAt: new Date(
+			Date.parse(params.get('openid.response_nonce')!.slice(0, 20)) +
+				10 * 60 * 1000
+		),
+		steamId: STEAM_ID
+	});
 });
 
 test('rejects an undocumented HTTPS Steam claimed ID', async () => {
@@ -68,10 +73,13 @@ test('rejects an undocumented HTTPS Steam claimed ID', async () => {
 	);
 });
 
-test('rejects Steam claimed IDs on lookalike hosts', async (context) => {
+test('rejects invalid Steam claimed IDs', async (context) => {
 	for (const claimedId of [
 		`https://steamcommunity.com.example/openid/id/${STEAM_ID}`,
-		`https://steamcommunity.com@evil.example/openid/id/${STEAM_ID}`
+		`https://steamcommunity.com@evil.example/openid/id/${STEAM_ID}`,
+		`http://steamcommunity.com/openid/user/${STEAM_ID}`,
+		'http://steamcommunity.com/openid/id/not-a-number',
+		`http://steamcommunity.com/openid/id/${STEAM_ID}/`
 	]) {
 		await context.test(claimedId, async () => {
 			await assert.rejects(

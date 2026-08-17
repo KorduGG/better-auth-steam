@@ -10,7 +10,7 @@ export interface SteamPluginOptions {
 	apiKey: string;
 
 	/**
-	 * Domain used to synthesize an email for new Steam users.
+	 * The plugin uses this domain to create an email for new Steam users.
 	 * Steam's OpenID does not provide email addresses, so the plugin
 	 * creates one of the form `steam_{steamId}@{syntheticEmailDomain}`.
 	 *
@@ -20,10 +20,10 @@ export interface SteamPluginOptions {
 
 	/**
 	 * Customize how a Steam profile maps onto the Better Auth user fields.
-	 * The function runs after the OpenID identity is verified and the plugin
+	 * The function runs after the plugin verifies the OpenID identity and
 	 * fetches the Steam Web API profile.
 	 *
-	 * Returned fields override the defaults. Any fields you omit fall back
+	 * The returned fields override the defaults. Any fields you omit fall back
 	 * to the plugin defaults (synthetic email, personaname, avatarfull).
 	 */
 	mapProfileToUser?: (profile: SteamPlayerSummary) => {
@@ -33,7 +33,7 @@ export interface SteamPluginOptions {
 	};
 
 	/**
-	 * Rename the `steamId` field or its user model.
+	 * This option renames the `steamId` field or its user model.
 	 */
 	schema?: InferOptionSchema<typeof schema>;
 }

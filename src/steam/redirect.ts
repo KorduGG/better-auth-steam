@@ -7,19 +7,10 @@ export function normalizeRedirectTarget(
 	input: string | null | undefined,
 	baseURL: string,
 	fallback: string,
-	isTrustedOrigin?: TrustedOriginCheck
+	isTrustedOrigin: TrustedOriginCheck
 ): string {
-	const isAllowed = (target: string): boolean => {
-		if (isTrustedOrigin) {
-			return isTrustedOrigin(target, { allowRelativePaths: true });
-		}
-
-		try {
-			return new URL(target, baseURL).origin === new URL(baseURL).origin;
-		} catch {
-			return false;
-		}
-	};
+	const isAllowed = (target: string): boolean =>
+		isTrustedOrigin(target, { allowRelativePaths: true });
 
 	if (input && isAllowed(input)) {
 		return input;

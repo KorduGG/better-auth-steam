@@ -83,7 +83,11 @@ export function buildSteamOpenIDRedirectURL(realm: string, returnTo: string): st
 export async function verifySteamOpenIDResponse(
 	params: URLSearchParams,
 	expectedReturnTo: string
-): Promise<string> {
+): Promise<{
+	responseNonce: string;
+	responseNonceExpiresAt: Date;
+	steamId: string;
+}> {
 	const fieldNames = new Set<string>();
 	for (const [name] of params) {
 		if (name.startsWith('openid.') && fieldNames.has(name)) {
@@ -189,7 +193,13 @@ export async function verifySteamOpenIDResponse(
 		throw new Error('Steam OpenID verification failed');
 	}
 
-	return match[1];
+	return {
+		responseNonce,
+		responseNonceExpiresAt: new Date(
+			nonceTimestamp + RESPONSE_NONCE_MAX_AGE_MS
+		),
+		steamId: match[1]
+	};
 }
 
 export interface SteamPlayerSummary {

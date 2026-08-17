@@ -142,7 +142,11 @@ async function startLink(
 	);
 }
 
-function createCallbackURL(providerURL: string, steamId: string): URL {
+function createCallbackURL(
+	providerURL: string,
+	steamId: string,
+	responseNonce = currentResponseNonce()
+): URL {
 	const provider = new URL(providerURL);
 	const returnTo = provider.searchParams.get('openid.return_to')!;
 	const callbackURL = new URL(returnTo);
@@ -156,10 +160,7 @@ function createCallbackURL(providerURL: string, steamId: string): URL {
 	callbackURL.searchParams.set('openid.claimed_id', claimedId);
 	callbackURL.searchParams.set('openid.identity', claimedId);
 	callbackURL.searchParams.set('openid.return_to', returnTo);
-	callbackURL.searchParams.set(
-		'openid.response_nonce',
-		currentResponseNonce()
-	);
+	callbackURL.searchParams.set('openid.response_nonce', responseNonce);
 	callbackURL.searchParams.set('openid.assoc_handle', 'handle');
 	callbackURL.searchParams.set(
 		'openid.signed',
@@ -238,7 +239,7 @@ test('signs in once with an unverified Steam identity', async (context) => {
 	);
 	assert.equal(callbackResponse.status, 302);
 	assert.equal(callbackResponse.headers.get('location'), APP_URL);
-	assert.equal(database.verification.length, 0);
+	assert.equal(database.verification.length, 1);
 	assert.equal(database.user.length, 1);
 	assert.equal(database.account.length, 1);
 	assert.equal(database.session.length, 1);
@@ -263,6 +264,39 @@ test('signs in once with an unverified Steam identity', async (context) => {
 	assert.equal(
 		replayResponse.headers.get('location'),
 		`${BASE_URL}/error?error=state_mismatch`
+	);
+	assert.equal(database.session.length, 1);
+});
+
+test('rejects a response nonce across independent states', async (context) => {
+	const { auth, database } = createAuth();
+	const firstFlow = await startSignIn(auth);
+	const secondFlow = await startSignIn(auth);
+	const steamId = '76561198000000023';
+	const responseNonce = currentResponseNonce('shared');
+	const firstCallback = createCallbackURL(
+		firstFlow.body.url,
+		steamId,
+		responseNonce
+	);
+	const secondCallback = createCallbackURL(
+		secondFlow.body.url,
+		steamId,
+		responseNonce
+	);
+	mockSteam(context, steamId);
+
+	const firstResponse = await auth.handler(
+		new Request(firstCallback, { headers: { cookie: firstFlow.cookie } })
+	);
+	const secondResponse = await auth.handler(
+		new Request(secondCallback, { headers: { cookie: secondFlow.cookie } })
+	);
+
+	assert.equal(firstResponse.headers.get('location'), APP_URL);
+	assert.equal(
+		secondResponse.headers.get('location'),
+		'https://app.example/error?source=steam&error=STEAM_VERIFICATION_FAILED#login'
 	);
 	assert.equal(database.session.length, 1);
 });
@@ -401,6 +435,17 @@ test('rejects untrusted redirect targets', async () => {
 	assert.equal(database.verification.length, 0);
 });
 
+test('rejects an untrusted error redirect independently', async () => {
+	const { auth, database } = createAuth();
+	const { response } = await startSignIn(auth, {
+		callbackURL: APP_URL,
+		errorCallbackURL: 'https://evil.example/error#capture'
+	});
+
+	assert.equal(response.status, 403);
+	assert.equal(database.verification.length, 0);
+});
+
 test('preserves trusted relative redirect targets in state', async () => {
 	const { auth, database } = createAuth();
 	await startSignIn(auth, {
@@ -495,6 +540,68 @@ test('rejects a Steam account that belongs to another user', async (context) => 
 	);
 });
 
+test('uses a stable error when the Steam account owner lookup fails', async (context) => {
+	const { auth } = createAuth();
+	const signUpResponse = await signUp(auth, 'lookup-failure@app.example');
+	const linkResponse = await startLink(auth, cookieHeader(signUpResponse));
+	const linkBody = (await linkResponse.json()) as { url: string };
+	const steamId = '76561198000000025';
+	const callbackURL = createCallbackURL(linkBody.url, steamId);
+	const adapter = (await auth.$context).internalAdapter;
+	context.mock.method(adapter, 'findAccountByProviderId', async () => {
+		throw new Error('The test adapter rejected the account lookup.');
+	});
+	mockSteam(context, steamId);
+
+	const response = await auth.handler(
+		new Request(callbackURL, {
+			headers: { cookie: cookieHeader(linkResponse) }
+		})
+	);
+
+	assert.equal(
+		response.headers.get('location'),
+		'https://app.example/error?source=steam&error=STEAM_UNABLE_TO_LINK_ACCOUNT#login'
+	);
+});
+
+test('does not set a stale session cookie when the Steam ID update fails', async (context) => {
+	for (const [name, updateUser] of [
+		['veto', async () => null],
+		[
+			'error',
+			async () => {
+				throw new Error('The test adapter rejected the user update.');
+			}
+		]
+	] as const) {
+		await context.test(name, async (childContext) => {
+			const { auth } = createAuth();
+			const { body, cookie } = await startSignIn(auth);
+			const steamId = name === 'veto' ? '76561198000000026' : '76561198000000027';
+			const callbackURL = createCallbackURL(body.url, steamId);
+			const adapter = (await auth.$context).internalAdapter;
+			childContext.mock.method(adapter, 'updateUser', updateUser);
+			mockSteam(childContext, steamId);
+
+			const response = await auth.handler(
+				new Request(callbackURL, { headers: { cookie } })
+			);
+
+			assert.equal(
+				response.headers.get('location'),
+				'https://app.example/error?source=steam&error=STEAM_AUTHENTICATION_FAILED#login'
+			);
+			assert.equal(
+				response.headers
+					.getSetCookie()
+					.some((value) => value.includes('session_token=')),
+				false
+			);
+		});
+	}
+});
+
 test('stores the updated Steam user in the session cookie cache', async (context) => {
 	const { auth } = createAuth(steamOpenID({ apiKey: 'test-api-key' }), {
 		session: { cookieCache: { enabled: true, maxAge: 300 } }
@@ -539,6 +646,14 @@ test('uses the default profile when the Steam profile request fails', async (con
 		(database.user[0] as { name: string }).name,
 		`Steam User ${steamId}`
 	);
+	assert.equal(
+		(database.user[0] as { email: string }).email,
+		`steam_${steamId}@steam.local`
+	);
+	assert.equal(
+		(database.user[0] as { emailVerified: boolean }).emailVerified,
+		false
+	);
 });
 
 test('forces POST for empty client sign-in and link calls', async (context) => {
@@ -547,8 +662,8 @@ test('forces POST for empty client sign-in and link calls', async (context) => {
 		globalThis,
 		'fetch',
 		async (_input: string | URL | Request, init?: RequestInit) => {
-		methods.push(init?.method ?? 'GET');
-		return Response.json({ redirect: true, url: 'https://steamcommunity.com/' });
+			methods.push(init?.method ?? 'GET');
+			return Response.json({ redirect: true, url: 'https://steamcommunity.com/' });
 		}
 	);
 	const client = createAuthClient({
@@ -689,6 +804,7 @@ test('fails closed when direct verification times out', async (context) => {
 test('rejects ambiguous direct-verification responses through the callback', async (context) => {
 	for (const body of [
 		'is_valid:true\n',
+		'ns:http://specs.openid.net/auth/2.0\nis_valid:false\n',
 		'ns:http://specs.openid.net/auth/2.0\nis_valid:false\nis_valid:true\n'
 	]) {
 		await context.test(body.trim(), async (childContext) => {
@@ -711,6 +827,32 @@ test('rejects ambiguous direct-verification responses through the callback', asy
 			assert.equal(database.session.length, 0);
 		});
 	}
+});
+
+test('rejects a changed signature when Steam rejects it', async (context) => {
+	const { auth, database } = createAuth();
+	const { body, cookie } = await startSignIn(auth);
+	const callbackURL = createCallbackURL(body.url, '76561198000000024');
+	callbackURL.searchParams.set('openid.sig', 'Y2hhbmdlZA==');
+	context.mock.method(
+		globalThis,
+		'fetch',
+		async () =>
+			new Response(
+				'ns:http://specs.openid.net/auth/2.0\nis_valid:false\n'
+			)
+	);
+
+	const response = await auth.handler(
+		new Request(callbackURL, { headers: { cookie } })
+	);
+
+	assert.equal(
+		response.headers.get('location'),
+		'https://app.example/error?source=steam&error=STEAM_VERIFICATION_FAILED#login'
+	);
+	assert.equal(database.account.length, 0);
+	assert.equal(database.session.length, 0);
 });
 
 test('uses the default profile for malformed Steam profile data', async (context) => {
@@ -862,27 +1004,29 @@ test('emits stable codes for account and session creation failures', async (cont
 		);
 	});
 
-	for (const [name, method, expectedCode] of [
+	for (const [name, method, expectedCode, steamId] of [
 		[
 			'user creation failure',
 			'createOAuthUser',
-			'STEAM_UNABLE_TO_CREATE_USER'
+			'STEAM_UNABLE_TO_CREATE_USER',
+			'76561198000000019'
 		],
 		[
 			'session creation failure',
 			'createSession',
-			'STEAM_UNABLE_TO_CREATE_SESSION'
+			'STEAM_UNABLE_TO_CREATE_SESSION',
+			'76561198000000018'
 		],
 		[
 			'unknown authentication failure',
 			'unknownOAuthError',
-			'STEAM_AUTHENTICATION_FAILED'
+			'STEAM_AUTHENTICATION_FAILED',
+			'76561198000000020'
 		]
 	] as const) {
 		await context.test(name, async (childContext) => {
 			const { auth } = createAuth();
 			const { body, cookie } = await startSignIn(auth);
-			const steamId = `765611980000000${method === 'createSession' ? '18' : method === 'createOAuthUser' ? '19' : '20'}`;
 			const callbackURL = createCallbackURL(body.url, steamId);
 			const adapter = (await auth.$context).internalAdapter;
 			if (method === 'createSession') {

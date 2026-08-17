@@ -114,6 +114,8 @@ provide or verify email addresses.
 - The callback validates required OpenID fields, signed fields, the exact
   `return_to` URL, and the Steam identity before it creates a session.
 - The plugin validates the assertion with Steam through `check_authentication`.
+- The plugin reserves each accepted Steam response nonce to prevent replay
+  across separate sign-in states.
 - Steam requests use a 10-second timeout and do not follow redirects.
 - Steam never uses implicit email-based account linking. Use the authenticated
   link endpoint to connect Steam to an existing user.
