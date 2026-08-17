@@ -58,19 +58,21 @@ test('verifies the documented HTTP Steam claimed ID', async (context) => {
 	});
 });
 
-test('rejects an undocumented HTTPS Steam claimed ID', async () => {
-	const claimedId = `https://steamcommunity.com/openid/id/${STEAM_ID}`;
-
-	await assert.rejects(
-		verifySteamOpenIDResponse(
-			validOpenIDResponse({
-				'openid.claimed_id': claimedId,
-				'openid.identity': claimedId
-			}),
-			EXPECTED_RETURN_TO
-		),
-		/Invalid openid.claimed_id format/
+test('verifies an HTTPS Steam claimed ID', async (context) => {
+	context.mock.method(globalThis, 'fetch', async () =>
+		new Response(VALID_DIRECT_RESPONSE)
 	);
+
+	const claimedId = `https://steamcommunity.com/openid/id/${STEAM_ID}`;
+	const verification = await verifySteamOpenIDResponse(
+		validOpenIDResponse({
+			'openid.claimed_id': claimedId,
+			'openid.identity': claimedId
+		}),
+		EXPECTED_RETURN_TO
+	);
+
+	assert.equal(verification.steamId, STEAM_ID);
 });
 
 test('rejects invalid Steam claimed IDs', async (context) => {
