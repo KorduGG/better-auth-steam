@@ -648,7 +648,7 @@ test('uses the default profile when the Steam profile request fails', async (con
 	);
 	assert.equal(
 		(database.user[0] as { email: string }).email,
-		`steam_${steamId}@steam.local`
+		`steam_${steamId}@steam.invalid`
 	);
 	assert.equal(
 		(database.user[0] as { emailVerified: boolean }).emailVerified,

@@ -14,7 +14,7 @@ export interface SteamPluginOptions {
 	 * Steam's OpenID does not provide email addresses, so the plugin
 	 * creates one of the form `steam_{steamId}@{syntheticEmailDomain}`.
 	 *
-	 * @default "steam.local"
+	 * @default "steam.invalid"
 	 */
 	syntheticEmailDomain?: string;
 

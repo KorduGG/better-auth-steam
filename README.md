@@ -56,7 +56,7 @@ type SteamPluginOptions = {
 ```
 
 - `apiKey`: Steam Web API key from https://steamcommunity.com/dev/apikey
-- `syntheticEmailDomain`: used to generate fallback emails, defaults to `steam.local`
+- `syntheticEmailDomain`: used to generate fallback emails, defaults to `steam.invalid`
 - `mapProfileToUser`: optional mapping function for Steam profile fields
 - `schema`: rename the `steamId` field or the `user` model
 

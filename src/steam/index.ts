@@ -106,7 +106,7 @@ async function createNonceIdentifier(responseNonce: string): Promise<string> {
  * It stores SteamID64 in the `account` table and copies it to `user.steamId`.
  */
 export const steamOpenID = (options: SteamPluginOptions) => {
-	const emailDomain = options.syntheticEmailDomain ?? 'steam.local';
+	const emailDomain = options.syntheticEmailDomain ?? 'steam.invalid';
 
 	return {
 		id: 'steam-openid',
