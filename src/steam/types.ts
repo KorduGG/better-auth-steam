@@ -33,6 +33,13 @@ export interface SteamPluginOptions {
 	};
 
 	/**
+	 * Update an existing user's mapped Steam profile fields on each sign-in.
+	 *
+	 * @default false
+	 */
+	overrideUserInfoOnSignIn?: boolean;
+
+	/**
 	 * This option renames the `steamId` field or its user model.
 	 */
 	schema?: InferOptionSchema<typeof schema>;

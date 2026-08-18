@@ -301,6 +301,48 @@ test('rejects a response nonce across independent states', async (context) => {
 	assert.equal(database.session.length, 1);
 });
 
+test('updates the Steam name and avatar on each sign-in', async (context) => {
+	const { auth, database } = createAuth(
+		steamOpenID({
+			apiKey: 'test-api-key',
+			overrideUserInfoOnSignIn: true
+		})
+	);
+	const steamId = '76561198000000024';
+	let profileRequest = 0;
+	context.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
+		if (String(input) === 'https://steamcommunity.com/openid/login') {
+			return new Response('ns:http://specs.openid.net/auth/2.0\nis_valid:true\n');
+		}
+
+		profileRequest += 1;
+		return Response.json({
+			response: {
+				players: [
+					{
+						steamid: steamId,
+						personaname: `Steam User ${profileRequest}`,
+						avatarfull: `https://cdn.example/avatar-${profileRequest}.jpg`,
+						profileurl: 'https://steamcommunity.com/id/test'
+					}
+				]
+			}
+		});
+	});
+
+	for (const suffix of ['first', 'second']) {
+		const flow = await startSignIn(auth);
+		const callbackURL = createCallbackURL(flow.body.url, steamId, currentResponseNonce(suffix));
+		await auth.handler(new Request(callbackURL, { headers: { cookie: flow.cookie } }));
+	}
+
+	assert.equal((database.user[0] as { name: string }).name, 'Steam User 2');
+	assert.equal(
+		(database.user[0] as { image: string }).image,
+		'https://cdn.example/avatar-2.jpg'
+	);
+});
+
 test('adds an error before the redirect fragment', async () => {
 	const { auth } = createAuth();
 	const { body, cookie } = await startSignIn(auth);

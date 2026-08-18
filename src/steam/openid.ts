@@ -178,7 +178,7 @@ export async function verifySteamOpenIDResponse(
 		method: 'POST',
 		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 		body: verifyParams.toString(),
-		redirect: 'error',
+		redirect: 'manual',
 		signal: AbortSignal.timeout(STEAM_REQUEST_TIMEOUT_MS)
 	});
 	if (response.status !== 200) {
@@ -216,7 +216,7 @@ export async function fetchSteamPlayerSummary(
 ): Promise<SteamPlayerSummary> {
 	const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${encodeURIComponent(apiKey)}&steamids=${encodeURIComponent(steamId)}`;
 	const response = await fetch(url, {
-		redirect: 'error',
+		redirect: 'manual',
 		signal: AbortSignal.timeout(STEAM_REQUEST_TIMEOUT_MS)
 	});
 	if (!response.ok) {
