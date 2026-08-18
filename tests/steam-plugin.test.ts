@@ -302,7 +302,12 @@ test('rejects a response nonce across independent states', async (context) => {
 });
 
 test('updates the Steam name and avatar on each sign-in', async (context) => {
-	const { auth, database } = createAuth();
+	const { auth, database } = createAuth(
+		steamOpenID({
+			apiKey: 'test-api-key',
+			overrideUserInfoOnSignIn: true
+		})
+	);
 	const steamId = '76561198000000024';
 	let profileRequest = 0;
 	context.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {

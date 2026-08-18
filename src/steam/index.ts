@@ -441,7 +441,7 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 								accountId: steamId
 							},
 							callbackURL,
-							overrideUserInfo: true,
+							overrideUserInfo: options.overrideUserInfoOnSignIn,
 							trustProviderByName: false
 						});
 					} catch (error) {
