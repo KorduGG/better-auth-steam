@@ -210,7 +210,7 @@ test('sends the exact assertion fields for direct verification', async (context)
 
 	assert.equal(requestURL, 'https://steamcommunity.com/openid/login');
 	assert.equal(requestInit?.method, 'POST');
-	assert.equal(requestInit?.redirect, 'error');
+	assert.equal(requestInit?.redirect, 'manual');
 	assert.ok(requestInit?.signal instanceof AbortSignal);
 	const sentParams = new URLSearchParams(String(requestInit?.body));
 	const expectedParams = new URLSearchParams(
@@ -221,7 +221,7 @@ test('sends the exact assertion fields for direct verification', async (context)
 });
 
 test('requires HTTP 200 for direct verification', async (context) => {
-	for (const status of [201, 500]) {
+	for (const status of [201, 302, 500]) {
 		await context.test(String(status), async (childContext) => {
 			childContext.mock.method(globalThis, 'fetch', async () =>
 				new Response(VALID_DIRECT_RESPONSE, { status })
@@ -302,8 +302,21 @@ test('fetches a Steam profile with redirect and timeout controls', async (contex
 		requestURL,
 		`https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=key%20%26%20value&steamids=${STEAM_ID}`
 	);
-	assert.equal(requestInit?.redirect, 'error');
+	assert.equal(requestInit?.redirect, 'manual');
 	assert.ok(requestInit?.signal instanceof AbortSignal);
+});
+
+test('rejects a redirect from the Steam profile API', async (context) => {
+	context.mock.method(
+		globalThis,
+		'fetch',
+		async () => new Response(null, { status: 302 })
+	);
+
+	await assert.rejects(
+		fetchSteamPlayerSummary(STEAM_ID, 'api-key'),
+		/Steam API error: 302/
+	);
 });
 
 test('rejects a profile for a different Steam identity', async (context) => {
