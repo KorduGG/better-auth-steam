@@ -31,7 +31,7 @@ Research date: 2026-08-17. The recommendations use Better Auth 1.6.29 as the cur
 The callback must pass all checks before the plugin creates or links an account:
 
 - Require `openid.ns` to equal `http://specs.openid.net/auth/2.0` and `openid.mode` to equal `id_res`.
-- Require the Steam OP endpoint and identity data to match the fixed Steam provider configuration. Steam documents `https://steamcommunity.com/openid/` as its OP and `http://steamcommunity.com/openid/id/<steamid>` as the claimed-ID format. Accept only the documented HTTP claimed-ID prefix. [Steamworks authentication documentation](https://partner.steamgames.com/doc/features/auth#user-authentication).
+- Require the Steam OP endpoint and identity data to match the fixed Steam provider configuration. Steam's documentation still lists `http://steamcommunity.com/openid/id/<steamid>`, but current provider responses use `https://steamcommunity.com/openid/id/<steamid>`. Accept only the exact HTTPS claimed-ID prefix. Reject the HTTP prefix. [Steamworks authentication documentation](https://partner.steamgames.com/doc/features/auth#user-authentication).
 - Require `openid.return_to` to match the callback scheme, authority, path, and state query value. The current callback request can contain additional OpenID query fields, but every query field in `return_to` must have the same value in the request. [OpenID 2.0 section 11.1](https://openid.net/specs/openid-authentication-2_0.html#verify_return_to).
 - Require `openid.identity` to equal the claimed ID for Steam. Require `openid.response_nonce`, `openid.assoc_handle`, `openid.signed`, and `openid.sig`.
 - Parse `openid.signed` as a comma-separated set. Require `op_endpoint`, `return_to`, `response_nonce`, `assoc_handle`, `claimed_id`, and `identity`. The specification requires these fields to be signed when the identity fields are present. [OpenID 2.0 positive assertions](https://openid.net/specs/openid-authentication-2_0.html#positive_assertions).
@@ -51,7 +51,7 @@ At minimum, test these cases:
 - Missing, changed, expired, or replayed state fails. A callback from a browser that did not start the flow fails.
 - A changed `return_to`, OP endpoint, claimed ID, identity, nonce, signature, or required signed-field list fails.
 - Direct verification sends only OpenID fields and accepts only an exact, successful `is_valid:true` response.
-- Steam's documented HTTP claimed ID succeeds. Invalid hosts, paths, and nonnumeric IDs fail.
+- Steam's HTTPS claimed ID succeeds. The HTTP form, invalid hosts, invalid paths, and nonnumeric IDs fail.
 - Synthetic and mapped emails remain unverified. A same-email collision does not link a Steam account implicitly. Explicit linking requires an existing authenticated session.
 - Relative and configured trusted-origin redirects succeed. Untrusted normal, error, and configured fallback URLs fail. Query strings and fragments remain valid.
 - `image: undefined` uses the Steam avatar. `image: null` removes the image.

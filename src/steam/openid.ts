@@ -1,6 +1,6 @@
 const STEAM_OPENID_URL = 'https://steamcommunity.com/openid/login';
 const OPENID_NAMESPACE = 'http://specs.openid.net/auth/2.0';
-const STEAM_ID_REGEX = /^http:\/\/steamcommunity\.com\/openid\/id\/(\d+)$/;
+const STEAM_ID_REGEX = /^https:\/\/steamcommunity\.com\/openid\/id\/(\d+)$/;
 const REQUIRED_SIGNED_FIELDS = [
 	'op_endpoint',
 	'claimed_id',

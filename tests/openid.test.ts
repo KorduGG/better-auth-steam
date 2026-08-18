@@ -22,8 +22,8 @@ function validOpenIDResponse(
 		'openid.ns': 'http://specs.openid.net/auth/2.0',
 		'openid.mode': 'id_res',
 		'openid.op_endpoint': 'https://steamcommunity.com/openid/login',
-		'openid.claimed_id': `http://steamcommunity.com/openid/id/${STEAM_ID}`,
-		'openid.identity': `http://steamcommunity.com/openid/id/${STEAM_ID}`,
+		'openid.claimed_id': `https://steamcommunity.com/openid/id/${STEAM_ID}`,
+		'openid.identity': `https://steamcommunity.com/openid/id/${STEAM_ID}`,
 		'openid.return_to': EXPECTED_RETURN_TO,
 		'openid.response_nonce': currentResponseNonce(),
 		'openid.assoc_handle': '1234567890',
@@ -40,7 +40,7 @@ function responseWithout(name: string): URLSearchParams {
 	return params;
 }
 
-test('verifies the documented HTTP Steam claimed ID', async (context) => {
+test('verifies an HTTPS Steam claimed ID', async (context) => {
 	context.mock.method(globalThis, 'fetch', async () =>
 		new Response(VALID_DIRECT_RESPONSE)
 	);
@@ -58,8 +58,8 @@ test('verifies the documented HTTP Steam claimed ID', async (context) => {
 	});
 });
 
-test('rejects an undocumented HTTPS Steam claimed ID', async () => {
-	const claimedId = `https://steamcommunity.com/openid/id/${STEAM_ID}`;
+test('rejects an HTTP Steam claimed ID', async () => {
+	const claimedId = `http://steamcommunity.com/openid/id/${STEAM_ID}`;
 
 	await assert.rejects(
 		verifySteamOpenIDResponse(
@@ -77,9 +77,9 @@ test('rejects invalid Steam claimed IDs', async (context) => {
 	for (const claimedId of [
 		`https://steamcommunity.com.example/openid/id/${STEAM_ID}`,
 		`https://steamcommunity.com@evil.example/openid/id/${STEAM_ID}`,
-		`http://steamcommunity.com/openid/user/${STEAM_ID}`,
-		'http://steamcommunity.com/openid/id/not-a-number',
-		`http://steamcommunity.com/openid/id/${STEAM_ID}/`
+		`https://steamcommunity.com/openid/user/${STEAM_ID}`,
+		'https://steamcommunity.com/openid/id/not-a-number',
+		`https://steamcommunity.com/openid/id/${STEAM_ID}/`
 	]) {
 		await context.test(claimedId, async () => {
 			await assert.rejects(

@@ -150,7 +150,7 @@ function createCallbackURL(
 	const provider = new URL(providerURL);
 	const returnTo = provider.searchParams.get('openid.return_to')!;
 	const callbackURL = new URL(returnTo);
-	const claimedId = `http://steamcommunity.com/openid/id/${steamId}`;
+	const claimedId = `https://steamcommunity.com/openid/id/${steamId}`;
 	callbackURL.searchParams.set('openid.ns', 'http://specs.openid.net/auth/2.0');
 	callbackURL.searchParams.set('openid.mode', 'id_res');
 	callbackURL.searchParams.set(
@@ -220,7 +220,7 @@ test('starts Steam sign-in with request-bound redirect state', async () => {
 	assert.equal(stateData.errorURL, ERROR_URL);
 });
 
-test('signs in once with an unverified Steam identity', async (context) => {
+test('signs in once with an unverified HTTPS Steam identity', async (context) => {
 	const plugin = steamOpenID({
 		apiKey: 'test-api-key',
 		mapProfileToUser: () => ({
@@ -696,6 +696,15 @@ test('hides the callback and applies schema renames', () => {
 test('rejects malformed OpenID assertions through the callback', async (context) => {
 	const cases: Array<[string, (callbackURL: URL) => void]> = [
 		[
+			'HTTP claimed ID',
+			(callbackURL) => {
+				const claimedId =
+					'http://steamcommunity.com/openid/id/76561198000000010';
+				callbackURL.searchParams.set('openid.claimed_id', claimedId);
+				callbackURL.searchParams.set('openid.identity', claimedId);
+			}
+		],
+		[
 			'changed return URL',
 			(callbackURL) =>
 				callbackURL.searchParams.set(
@@ -715,7 +724,7 @@ test('rejects malformed OpenID assertions through the callback', async (context)
 			'lookalike claimed ID',
 			(callbackURL) => {
 				const claimedId =
-					'http://steamcommunity.com.example/openid/id/76561198000000010';
+					'https://steamcommunity.com.example/openid/id/76561198000000010';
 				callbackURL.searchParams.set('openid.claimed_id', claimedId);
 				callbackURL.searchParams.set('openid.identity', claimedId);
 			}
@@ -725,7 +734,7 @@ test('rejects malformed OpenID assertions through the callback', async (context)
 			(callbackURL) =>
 				callbackURL.searchParams.set(
 					'openid.identity',
-					'http://steamcommunity.com/openid/id/76561198000000011'
+					'https://steamcommunity.com/openid/id/76561198000000011'
 				)
 		],
 		[
@@ -749,11 +758,13 @@ test('rejects malformed OpenID assertions through the callback', async (context)
 	];
 
 	for (const [name, modify] of cases) {
-		await context.test(name, async () => {
+		await context.test(name, async (childContext) => {
 			const { auth, database } = createAuth();
 			const { body, cookie } = await startSignIn(auth);
-			const callbackURL = createCallbackURL(body.url, '76561198000000010');
+			const steamId = '76561198000000010';
+			const callbackURL = createCallbackURL(body.url, steamId);
 			modify(callbackURL);
+			mockSteam(childContext, steamId);
 			const response = await auth.handler(
 				new Request(callbackURL, { headers: { cookie } })
 			);
