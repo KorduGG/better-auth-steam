@@ -1,16 +1,16 @@
 {
 	"name": "better-auth-steam",
-	"version": "0.2.3",
+	"version": "0.2.4-kordugg.1",
 	"description": "Steam OpenID 2.0 plugin for Better Auth",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/ytsdv/better-auth-steam.git"
+		"url": "git+https://github.com/KorduGG/better-auth-steam.git"
 	},
 	"bugs": {
-		"url": "https://github.com/ytsdv/better-auth-steam/issues"
+		"url": "https://github.com/KorduGG/better-auth-steam/issues"
 	},
-	"homepage": "https://github.com/ytsdv/better-auth-steam#readme",
+	"homepage": "https://github.com/KorduGG/better-auth-steam#readme",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -43,13 +43,13 @@
 		"prepublishOnly": "pnpm run lint && pnpm run test && pnpm run typecheck && pnpm run build"
 	},
 	"peerDependencies": {
-		"better-auth": ">=1.6.21 <2",
+		"better-auth": ">=1.7.0 <2",
 		"zod": ">=4"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.39.1",
 		"@types/node": "^24.9.1",
-		"better-auth": "~1.6.29",
+		"better-auth": "~1.7.1",
 		"eslint": "^9.38.0",
 		"tsup": "^8.5.0",
 		"tsx": "^4.21.0",

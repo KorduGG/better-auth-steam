@@ -1,0 +1,17 @@
+export { S as SteamPlayerSummary, a as SteamPluginOptions, s as steamOpenID } from './index-DgR7k534.js';
+import * as better_auth from 'better-auth';
+import 'zod';
+
+declare const STEAM_ERROR_CODES: {
+    STEAM_VERIFICATION_FAILED: better_auth.RawError<"STEAM_VERIFICATION_FAILED">;
+    STEAM_ACCOUNT_NOT_LINKED: better_auth.RawError<"STEAM_ACCOUNT_NOT_LINKED">;
+    STEAM_UNABLE_TO_LINK_ACCOUNT: better_auth.RawError<"STEAM_UNABLE_TO_LINK_ACCOUNT">;
+    STEAM_ACCOUNT_LINKING_DISABLED: better_auth.RawError<"STEAM_ACCOUNT_LINKING_DISABLED">;
+    STEAM_DIFFERENT_EMAIL_LINKING_DISABLED: better_auth.RawError<"STEAM_DIFFERENT_EMAIL_LINKING_DISABLED">;
+    STEAM_ACCOUNT_ALREADY_LINKED: better_auth.RawError<"STEAM_ACCOUNT_ALREADY_LINKED">;
+    STEAM_UNABLE_TO_CREATE_USER: better_auth.RawError<"STEAM_UNABLE_TO_CREATE_USER">;
+    STEAM_UNABLE_TO_CREATE_SESSION: better_auth.RawError<"STEAM_UNABLE_TO_CREATE_SESSION">;
+    STEAM_AUTHENTICATION_FAILED: better_auth.RawError<"STEAM_AUTHENTICATION_FAILED">;
+};
+
+export { STEAM_ERROR_CODES };

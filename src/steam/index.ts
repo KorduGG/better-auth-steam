@@ -2,7 +2,7 @@ import { HIDE_METADATA, type BetterAuthPlugin } from 'better-auth';
 import { APIError, createAuthEndpoint, sessionMiddleware } from 'better-auth/api';
 import { generateState, handleOAuthUserInfo, parseState } from 'better-auth/oauth2';
 import { setSessionCookie } from 'better-auth/cookies';
-import { mergeSchema } from 'better-auth/db';
+import { createOAuthAccountIssuer, mergeSchema } from 'better-auth/db';
 import * as z from 'zod';
 
 import {
@@ -16,6 +16,7 @@ import { addErrorToRedirect, normalizeRedirectTarget } from './redirect';
 import type { SteamPluginOptions } from './types';
 
 export const PROVIDER_ID = 'steam';
+const PROVIDER_ISSUER = createOAuthAccountIssuer(PROVIDER_ID);
 
 type SteamErrorCode = keyof typeof STEAM_ERROR_CODES;
 
@@ -139,8 +140,8 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 						ctx.context.baseURL,
 						isTrustedRedirect
 					);
-					const { state } = await generateState(ctx, undefined, {
-						returnTo: callbackEndpoint
+					const { state } = await generateState(ctx, {
+						additionalData: { returnTo: callbackEndpoint }
 					});
 					const url = buildSteamAuthorizationURL(callbackEndpoint, realm, state);
 					ctx.setHeader('Location', url);
@@ -196,10 +197,12 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 					const { state } = await generateState(
 						ctx,
 						{
-							email: ctx.context.session.user.email,
-							userId: ctx.context.session.user.id
-						},
-						{ returnTo: callbackEndpoint }
+							link: {
+								email: ctx.context.session.user.email,
+								userId: ctx.context.session.user.id
+							},
+							additionalData: { returnTo: callbackEndpoint }
+						}
 					);
 					const url = buildSteamAuthorizationURL(callbackEndpoint, realm, state);
 					ctx.setHeader('Location', url);
@@ -365,11 +368,10 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 
 						let existingAccount;
 						try {
-							existingAccount =
-								await ctx.context.internalAdapter.findAccountByProviderId(
-									steamId,
-									PROVIDER_ID
-								);
+							existingAccount = await ctx.context.internalAdapter.findAccountByKey({
+								issuer: PROVIDER_ISSUER,
+								accountId: steamId
+							});
 						} catch (error) {
 							ctx.context.logger.error(
 								'The plugin could not check the Steam account owner.',
@@ -389,6 +391,7 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 								createdAccount = await ctx.context.internalAdapter.createAccount({
 									userId: link.userId,
 									providerId: PROVIDER_ID,
+									issuer: PROVIDER_ISSUER,
 									accountId: steamId
 								});
 								if (!createdAccount) {
@@ -438,6 +441,7 @@ export const steamOpenID = (options: SteamPluginOptions) => {
 							} as Parameters<typeof handleOAuthUserInfo>[1]['userInfo'],
 							account: {
 								providerId: PROVIDER_ID,
+								issuer: PROVIDER_ISSUER,
 								accountId: steamId
 							},
 							callbackURL,
