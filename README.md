@@ -1,6 +1,6 @@
 # better-auth-steam
 
-Steam OpenID 2.0 plugin for Better Auth 1.6.21 or later.
+Steam OpenID 2.0 plugin for Better Auth versions 1.7.x, maintained by KorduGG.
 
 It adds a Steam sign-in and account-link flow:
 
@@ -102,12 +102,17 @@ await authClient.steam.link({
 The plugin adds a nullable unique `steamId` field on the Better Auth `user` model.
 
 - `account.providerId`: `steam`
+- `account.issuer`: `local:oauth:steam`
 - `account.accountId`: SteamID64
 - `user.steamId`: SteamID64
 
 The plugin creates a synthetic email because Better Auth requires an email on
 the user record. The plugin marks this email as unverified. Steam does not
 provide or verify email addresses.
+
+When upgrading an existing Better Auth 1.6 database, complete Better Auth's
+account-issuer migration before deploying this plugin. Database migrations stay
+application-owned; callback requests never rewrite account identity records.
 
 ## Security notes
 

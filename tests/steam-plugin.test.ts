@@ -215,9 +215,10 @@ test('starts Steam sign-in with request-bound redirect state', async () => {
 	assert.equal(database.verification.length, 1);
 	const stateData = JSON.parse(
 		(database.verification[0] as { value: string }).value
-	) as { callbackURL: string; errorURL: string };
+	) as { callbackURL: string; errorURL: string; returnTo: string };
 	assert.equal(stateData.callbackURL, APP_URL);
 	assert.equal(stateData.errorURL, ERROR_URL);
+	assert.equal(stateData.returnTo, `${BASE_URL}/steam/callback`);
 });
 
 test('signs in once with an unverified HTTPS Steam identity', async (context) => {
@@ -243,6 +244,10 @@ test('signs in once with an unverified HTTPS Steam identity', async (context) =>
 	assert.equal(database.user.length, 1);
 	assert.equal(database.account.length, 1);
 	assert.equal(database.session.length, 1);
+	assert.equal(
+		(database.account[0] as { issuer?: string }).issuer,
+		'local:oauth:steam'
+	);
 	assert.deepEqual(
 		Object.fromEntries(
 			Object.entries(database.user[0] as Record<string, unknown>).filter(([key]) =>
@@ -556,6 +561,7 @@ test('rejects a Steam account that belongs to another user', async (context) => 
 	database.account.push({
 		id: 'existing-steam-account',
 		accountId: steamId,
+		issuer: 'local:oauth:steam',
 		providerId: 'steam',
 		userId: (database.user[0] as { id: string }).id,
 		createdAt: new Date(),
@@ -590,7 +596,7 @@ test('uses a stable error when the Steam account owner lookup fails', async (con
 	const steamId = '76561198000000025';
 	const callbackURL = createCallbackURL(linkBody.url, steamId);
 	const adapter = (await auth.$context).internalAdapter;
-	context.mock.method(adapter, 'findAccountByProviderId', async () => {
+	context.mock.method(adapter, 'findAccountByKey', async () => {
 		throw new Error('The test adapter rejected the account lookup.');
 	});
 	mockSteam(context, steamId);
@@ -1060,7 +1066,7 @@ test('emits stable codes for account and session creation failures', async (cont
 	for (const [name, method, expectedCode, steamId] of [
 		[
 			'user creation failure',
-			'createOAuthUser',
+			'createUser',
 			'STEAM_UNABLE_TO_CREATE_USER',
 			'76561198000000019'
 		],
@@ -1084,12 +1090,12 @@ test('emits stable codes for account and session creation failures', async (cont
 			const adapter = (await auth.$context).internalAdapter;
 			if (method === 'createSession') {
 				childContext.mock.method(adapter, 'createSession', async () => null);
-			} else if (method === 'createOAuthUser') {
-				childContext.mock.method(adapter, 'createOAuthUser', async () => {
+			} else if (method === 'createUser') {
+				childContext.mock.method(adapter, 'createUser', async () => {
 					throw new Error('The test adapter rejected the user.');
 				});
 			} else {
-				childContext.mock.method(adapter, 'createOAuthUser', async () => {
+				childContext.mock.method(adapter, 'createUser', async () => {
 					throw APIError.from('BAD_REQUEST', {
 						code: 'UNKNOWN_OAUTH_ERROR',
 						message: 'The test adapter returned an unknown OAuth error.'
@@ -1117,7 +1123,7 @@ test('remaps OAuth helper redirects to a trusted error target', async (context) 
 	const steamId = '76561198000000022';
 	const callbackURL = createCallbackURL(body.url, steamId);
 	const adapter = (await auth.$context).internalAdapter;
-	context.mock.method(adapter, 'findOAuthUser', async () => {
+	context.mock.method(adapter, 'findAccountOwnerByKey', async () => {
 		throw new Error('The test adapter rejected the OAuth lookup.');
 	});
 	mockSteam(context, steamId);
